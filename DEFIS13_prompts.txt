@@ -1,0 +1,247 @@
+Prompts utilisés pour construire le projet DEFIS13
+===================================================
+
+Contexte global (à coller en premier)
+-------------------------------------
+Contexte du projet DEFIS13 :
+- But : application Windows (exécutable via PyInstaller) affichant l'emploi du temps récupéré depuis Wigor.
+- Auth : l'utilisateur colle MANUELLEMENT le header Cookie dans l'UI (pas d'auth automatique).
+- L'API/endpoint renvoie du HTML (page d'emploi du temps). On doit parser le HTML pour extraire les cours.
+- UI : Tkinter simple avec table (ttk.Treeview) affichant date, début, fin, matière, salle, professeur.
+- Tests : pytest + pytest-cov, coverage > 80%.
+- Architecture existante : app/{__init__.py, config.py, gui.py, index.py, main.py, models.py, wigor_api.py}
+- Exemple de fragment HTML (fournir) et URL d'appel : https://ws-edt-cd.wigorservices.net/WebPsDyn.aspx
+- Exemples de cookies fournis (DotNetCasClientAuth et ASP.NET_SessionId) — le client devra envoyer l'en-tête `Cookie: <valeur fournie>`.
+
+________________________________________________
+
+Prompt global (à utiliser pour demander la génération complète)
+--------------------------------------------------------------
+«Tu es un ingénieur logiciel senior. Génère l’arborescence et le code complet pour un projet Python nommé "DEFIS13" qui :
+- Fournit une application GUI Windows (Tkinter) permettant à l’utilisateur de coller manuellement le header Cookie et de charger son emploi du temps depuis l’API Wigor (HTML).
+- Parse le HTML renvoyé par l’API pour en extraire les cours.
+- Sépare clairement la logique réseau (app/wigor_api.py), le parsing (app/index.py), le modèle (app/models.py), la config (app/config.py), la GUI (app/gui.py) et le point d’entrée (app/main.py).
+- Inclut des tests Pytest (mocks), un fichier main.spec pour PyInstaller, et des fixtures d’exemple.
+- Respecte PEP8, fournit des docstrings et du logging.
+- Tout doit fonctionner sous Python 3.11+. »
+
+Je veux que tu génères pour chaque fichier le code adapté selon les rôles suivants :
+
+### 🔹 app/wigor_api.py
+- Contient une classe `WigorClient` qui se connecte à l’API wigorservices.
+- Utilise `requests` avec un header `Cookie` passé en paramètre.
+- Fournit une méthode `get_schedule()` qui renvoie la réponse JSON formatée.
+- Gère les erreurs (401, 404, 500) avec des exceptions personnalisées.
+
+### 🔹 app/models.py
+- Définit une dataclass `ScheduleItem` avec les champs : `date`, `start_time`, `end_time`, `subject`, `room`, `teacher`.
+- Fournit une fonction `parse_schedule(json_data)` pour transformer la réponse API en liste de `ScheduleItem`.
+
+### 🔹 app/gui.py
+- Utilise `tkinter` ou `PySide6` pour créer une fenêtre "McGonagall Planner".
+- La fenêtre contient :
+  - une zone pour coller les cookies,
+  - un bouton "Charger emploi du temps" → appelle `WigorClient.get_schedule()`,
+  - une table affichant les cours (date, heure, matière, salle, prof),
+  - une zone de logs/erreurs.
+- Le code doit être bien organisé (classe `MainWindow`) et testable.
+
+### 🔹 app/main.py
+- Point d’entrée du programme.
+- Instancie la fenêtre depuis `gui.py`.
+- Charge les cookies si présents (optionnel).
+- Lance l’application avec `if __name__ == "__main__":`.
+
+### 🔹 app/config.py
+- Contient les constantes (URL de l’API, paramètres).
+- Exemple : `BASE_URL = "https://api.wigorservices.net/schedule"`
+
+### 🔹 app/index.py
+- Peut servir à des fonctions utilitaires : formatage, logs, regroupement par jour.
+
+### 🔹 tests/test_api.py
+- Mock `requests.get` pour tester les cas : succès (200), erreur 401, erreur 500.
+- Vérifie que `get_schedule()` renvoie bien la liste d’objets `ScheduleItem`.
+
+### 🔹 tests/test_models.py
+- Teste `parse_schedule()` avec un JSON correct, un JSON incomplet, et un JSON vide.
+
+### 🔹 tests/test_gui.py
+- Teste que l’interface se crée sans erreur.
+- Mock `WigorClient.get_schedule()` pour vérifier que le tableau se met à jour.
+
+### 🔹 build/main.spec
+- Fichier PyInstaller pour générer un exécutable Windows (`McGonagallPlanner.exe`).
+- OneFile, avec icône et nom du programme.
+
+Prompts plus detaillés : ->
+
+________________________________________________
+
+1) Prompt pour initialiser le projet (structure)
+------------------------------------------------
+«Agis comme un ingénieur logiciel senior.
+Crée la structure du projet DEFIS13 :
+DEFIS13/
+├── app/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── gui.py
+│   ├── index.py
+│   ├── main.py
+│   ├── models.py
+│   └── wigor_api.py
+├── build/
+├── dist/
+├── tests/
+│   ├── fixtures.py
+│   ├── test_api.py
+│   ├── test_index_parse.py
+│   ├── test_models.py
+│   └── test_gui.py
+├── main.spec
+├── pytest.ini
+└── README.md
+Génère aussi un bref README.md expliquant le but et la façon de lancer les tests et de construire l’exécutable.»
+
+________________________________________________
+
+2) Prompt pour app/config.py
+-----------------------------
+«Génère un fichier app/config.py contenant les constantes de configuration :
+- BASE_URL = "https://ws-edt-cd.wigorservices.net/WebPsDyn.aspx"
+- DEFAULT_PARAMS = {"action":"posEDTLMS","serverID":"C","Tel":"hamza.elamrani"}
+- TIMEOUT = 
+- RETRIES = 
+- USER_AGENT = 
+
+________________________________________________
+
+3) Prompt pour app/wigor_api.py
+-------------------------------
+«Génère le fichier app/wigor_api.py avec :
+- Classe WigorClient(cookie_header: str, base_url: str = DEFAULT_BASE_URL, response_override_html: Optional[str]=None)
+  - Méthode get_schedule_html(date: Optional[str]) -> str : effectue GET (requests.Session) avec header 'Cookie': cookie_header.
+  - Implémentation d’un _request_with_retries pour retenter 3 fois sur ConnectionError ou Timeout (backoff exponentiel).
+  - Gestion des codes HTTP : 200 -> return text ; 401 -> raise AuthenticationError ; 404 -> raise NotFoundError ; >=500 -> raise ServerError ; autres -> raise ApiError.
+  - Mode test via response_override_html pour bypasser la requête réseau.
+- Définir les exceptions personnalisées AuthenticationError, NotFoundError, ServerError, ApiError.
+- Logging détaillé pour chaque tentative et erreur.
+- Timeout raisonnable (10s) et user-agent configuré.
+- Fournir un exemple d’appel en commentaire et l’exemple de header Cookie attendu:
+  DotNetCasClientAuth="573F92..." ASP.NET_SessionId="j0ir13p..."»
+
+________________________________________________
+
+4) Prompt pour app/models.py
+-----------------------------
+«Génère app/models.py contenant :
+- @dataclass ScheduleItem avec champs : date: datetime.date, start_time: datetime.time, end_time: datetime.time, subject: str, room: str, teacher: str, presencial: bool = False.
+- Méthode de classe from_strings(date_str: str, start_end_str: str, subject: str, room: str, teacher: str) -> ScheduleItem qui accepte "MM/DD/YYYY" et "YYYY-MM-DD" pour date, et "09:00 - 10:00" pour time.
+- Méthode to_display_tuple(self) -> tuple pour l’affichage dans Treeview.
+- Docstrings et type hints.
+- Lever ValueError sur formats invalides.»
+
+________________________________________________
+
+5) Prompt pour app/index.py (parsing)
+-------------------------------------
+«Génère app/index.py avec la fonction parse_schedule_html(html: str, default_date: Optional[date]=None) -> List[ScheduleItem] :
+- Utilise BeautifulSoup (bs4) pour parser.
+- Hypothèse d’extrait HTML (inclus) :
+  <tbody>
+  <tr><td class="TCase" colspan="2"...>Election délégués</td></tr>
+  <tr><td colspan="2" class="TCProf"...>serin emmanuelle<br>I2 EISI ALT ...</td></tr>
+  <tr><td class="TChdeb">09:00 - 10:00</td><td class="TCSalle">Salle:T 206(THALIE)</td></tr>
+  </tbody>
+- Pour chaque <tbody> :
+  - Extraire subject depuis le premier <tr> / première <td>.
+  - Extraire teacher depuis la deuxième <tr> (texte avant <br>).
+  - Extraire time depuis <td class="TChdeb"> et room depuis <td class="TCSalle"> (retirer le préfixe 'Salle:').
+  - Normaliser les espaces et retours chariot.
+  - Si la date n’est pas présente, utiliser default_date ou la date d’aujourd’hui.
+  - Utiliser ScheduleItem.from_strings pour créer l’objet, et logger les erreurs sans planter le parsing global.
+- Ajouter validations et lever ValueError si le HTML est totalement inattendu.
+- Docstrings et type hints.»
+
+________________________________________________
+
+6) Prompt pour app/gui.py (Tkinter)
+-----------------------------------
+«Génère app/gui.py en Tkinter :
+- Classe MainWindow(tk.Tk) exportable.
+- Widgets :
+  - Label + ScrolledText pour coller le Cookie header (étiquette : "Coller ici votre header Cookie").
+  - Entry pour la date (MM/DD/YYYY) et bouton "Charger emploi du temps".
+  - Bouton "Enregistrer cookie" (stockage en mémoire ; commentaire sur keyring pour futur).
+  - Treeview (ttk.Treeview) colonnes : Date, Début, Fin, Matière, Salle, Professeur.
+  - Zone de logs/erreurs (ScrolledText) et status label.
+- Séparer la logique réseau dans fetch_and_parse(cookie, date) -> List[ScheduleItem] pour faciliter le mock dans les tests.
+- Méthode populate_table(items) pour remplir le Treeview.
+- Gestion des exceptions : afficher message dans status et logger.exception.
+- Fournir un exemple d’instanciation et d’appel if __name__ == '__main__' minimal pour debug (mais le point d’entrée principal est app/main.py).
+- Docstrings et type hints.»
+
+________________________________________________
+
+7) Prompt pour app/main.py
+--------------------------
+«Génère app/main.py comme point d’entrée :
+- Utilise argparse pour un paramètre --test-html <file> qui permet de lancer l’UI avec un HTML statique (injecté dans WigorClient.response_override_html).
+- Configure logging.basicConfig.
+- Crée et lance MainWindow().mainloop() dans main().
+- Documenter l’usage pour dev/test et pour PyInstaller.
+- Docstrings et type hints.»
+
+________________________________________________
+
+8) Prompt pour tests (pytest)
+-----------------------------
+«Génère les tests pytest sous tests/ :
+- tests/fixtures.py avec SAMPLE_COOKIE et SAMPLE_HTML (trois <tbody> fournis).
+- tests/test_api.py : mocker client.session.get pour tester cas 200 (retour HTML), 401 (AuthenticationError), 500 (ServerError). Tester aussi le param response_override_html.
+- tests/test_models.py : tester ScheduleItem.from_strings success et échec (malformed time).
+- tests/test_index_parse.py : tester parse_schedule_html sur SAMPLE_HTML, couvrir missing fields (no room, no teacher).
+- tests/test_gui.py : créer MainWindow() (sans mainloop), patcher WigorClient.get_schedule_html pour retourner SAMPLE_HTML et tester fetch_and_parse / populate_table minimalement.
+- Fournir pytest.ini avec addopts = --maxfail=1 -q --disable-warnings --strict-markers.
+- Indiquer commande pour lancer les tests et obtenir coverage: pytest --cov=app --cov-report=term-missing.»
+
+________________________________________________
+
+9) Prompt pour main.spec (PyInstaller)
+-------------------------------------
+«Génère un main.spec pour PyInstaller :
+- Onefile build, nom 'McGonagallPlanner'.
+- Inclure script app/main.py.
+- Option console=False (GUI app), upx option (si disponible), icône (laisser None si non fournie).
+- Ajouter commentaire sur comment adapter pathex et datas si besoin (templates/ico).»
+
+________________________________________________
+
+10) Prompt pour README et packaging
+-----------------------------------
+«Génère README.md expliquant :
+- But du projet.
+- Dépendances (requests, beautifulsoup4, pytest, pytest-cov).
+- Commandes utiles :
+  - pip install -r requirements.txt
+  - pytest --cov=app
+  - pyinstaller --clean main.spec
+- Notes sur sécurité : ne pas committer de cookies, usage de keyring pour stocker les cookies à l’avenir.
+- Conseils pour adapter le parser si l’HTML change.»
+
+________________________________________________
+
+11) Prompt pour checklist Dev & Tests
+-------------------------------------
+«Fournis une checklist courte :
+- [ ] Installer dépendances
+- [ ] Lancer tests (coverage > 80%)
+- [ ] Tester avec --test-html
+- [ ] Adapter parsing si HTML réel diffère
+- [ ] Construire exe avec PyInstaller
+
+
+________________________________________________
+
+

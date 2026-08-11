@@ -16,7 +16,7 @@ L’application est structurée en deux parties principales :
 
 ---
 
-## 3. Fonctionnement de l’application
+##  Fonctionnement de l’application
 
 - L’utilisateur saisit ses identifiants ou un cookie.
 - L’application se connecte à l’API WigorServices.
@@ -27,7 +27,7 @@ L’application est structurée en deux parties principales :
 
 ---
 
-## 4. Couverture des tests
+##  Couverture des tests
 
 Commande utilisée :
 
